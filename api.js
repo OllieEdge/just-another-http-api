@@ -140,7 +140,7 @@ const recursiveReadDir = async ( docRoot ) => {
         const files = await recursiveRead ( docRoot );
         
         // Remove all falsy values and reverse the array.
-        return files.filter ( Boolean ).reverse ();
+        return files.filter ( filePath => filePath ? !filePath.includes ( 'DS_Store' ) : false ).reverse ();
     }
     catch ( e ){
         console.error ( 'JustAnother: Failed to load your routes directory for generating endpoints.' );

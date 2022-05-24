@@ -1,17 +1,28 @@
 {
   "name": "just-another-http-api",
   "version": "1.0.0",
-  "description": "Utilises your docroot routes directory to generate an API, reducing the time it takes to setup, organise and structure your rest APIs",
+  "description": "A framework built on top of restify aimed at removing the need for any network or server configuration. ",
+  "homepage": "https://github.com/OllieEdge/just-another-http-api#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OllieEdge/just-another-http-api.git"
+  },
   "main": "api.js",
   "scripts": {
     "start": "node api.js",
     "test": "mocha"
   },
   "keywords": [
-    "REST",
-    "API"
+    "restapi",
+    "restful",
+    "rest",
+    "restify",
+    "http",
+    "server",
+    "just another",
+    "another"
   ],
-  "author": "Oliver Edgington <oliver@edgington.com>",
+  "author": "Oliver Edgington <oliver@edgington.com> (https://github.com/OllieEdge)",
   "license": "MIT",
   "dependencies": {
     "multer": "^1.4.2",

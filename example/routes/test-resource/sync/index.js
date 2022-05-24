@@ -1,1 +1,1 @@
-exports.get = async req => ( { result: 'synced' } );
+exports.get = async req => ( { result: req.query } );
