@@ -1,0 +1,28 @@
+{
+  "name": "just-another-http-api",
+  "version": "1.0.0",
+  "description": "Utilises your docroot routes directory to generate an API, reducing the time it takes to setup, organise and structure your rest APIs",
+  "main": "api.js",
+  "scripts": {
+    "start": "node api.js",
+    "test": "mocha"
+  },
+  "keywords": [
+    "REST",
+    "API"
+  ],
+  "author": "Oliver Edgington <oliver@edgington.com>",
+  "license": "MIT",
+  "dependencies": {
+    "multer": "^1.4.2",
+    "recursive-readdir": "^2.2.2",
+    "restify": "github:restify/node-restify#c5361e9",
+    "restify-cors-middleware2": "^2.1.2",
+    "restify-errors": "^8.0.0"
+  },
+  "devDependencies": {
+    "chai": "^4.3.6",
+    "chai-as-promised": "^7.1.1",
+    "mocha": "^10.0.0"
+  }
+}
