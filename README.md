@@ -1,4 +1,4 @@
-![just-another-http-api](https://i.ibb.co/rZh9CkG/logo.png "Just Another HTTP API")
+![just-another-http-api](https://github.com/OllieEdge/just-another-http-api/blob/main/logo/logo.png?raw=true "Just Another HTTP API")
 
 [![Run Unit Tests](https://github.com/OllieEdge/just-another-http-api/actions/workflows/main.yml/badge.svg)](https://github.com/OllieEdge/just-another-http-api/actions/workflows/main.yml)
 [![Open Source? Yes!](https://badgen.net/badge/Open%20Source%20%3F/Yes%21/blue?icon=github)](https://github.com/Naereen/badges/)
