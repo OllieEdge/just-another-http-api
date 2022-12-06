@@ -73,9 +73,12 @@ module.exports = async ( config, every = null, _server = null ) => {
                     } //
                     else if ( response.hasOwnProperty ( 'json' ) || response.hasOwnProperty ( 'body' ) || response.hasOwnProperty ( 'response' ) || typeof response === 'string' ){
                         data = response?.json || response?.body || response?.response || response;
+                        res.setHeader ( 'Content-Type', 'application/json' );
                         res.send ( method === 'post' ? 201 : 200, data );
                     }
                     else if ( response.hasOwnProperty ( 'error' ) ){
+                        console.error ( error );
+                        res.setHeader ( 'Content-Type', 'application/json' );
                         res.send ( new restifyErrors.makeErrFromCode ( response?.error?.statusCode, response?.error?.message ) );
                     }
                     else if ( response.hasOwnProperty ( 'file' ) ){
@@ -88,12 +91,14 @@ module.exports = async ( config, every = null, _server = null ) => {
                         res.send ( 204 );
                     }
                     else {
+                        res.setHeader ( 'Content-Type', 'application/json' );
                         res.send ( new restifyErrors.makeErrFromCode ( 500, `Just Another Http API did not understand the response provided for request: ${ method } to ${ endpoint.path }. Check your return value.` ) );
                     }
 
                     return;
                 }
                 catch ( error ){
+                    res.setHeader ( 'Content-Type', 'application/json' );
                     if ( error instanceof Error ) {
                         res.send ( new restifyErrors.InternalServerError ( { code: 500 }, error.stack.replace ( /\n/g, ' ' ) ) );
                     }
