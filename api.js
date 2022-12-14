@@ -67,6 +67,14 @@ module.exports = async ( config, every = null, _server = null ) => {
                         res.set ( response.headers ); 
                     }
 
+                    if ( response.hasOwnProperty ( 'redirect' ) ){
+                        res.redirect ( response.redirect.code, response.redirect.url, () => null );
+                    }
+
+                    if ( response.hasOwnProperty ( 'cache' ) ){
+                        res.cache ( response.cache.type, response.cache.options );
+                    }
+
                     // If response.html is set, we want to send the HTML back as a raw string and set the content type.
                     if ( response.hasOwnProperty ( 'html' ) ){
                         res.sendRaw ( 200, response.html, { 'Content-Type': 'text/html' } );
