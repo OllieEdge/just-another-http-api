@@ -85,7 +85,7 @@ module.exports = async ( config, every = null, _server = null ) => {
                         res.send ( method === 'post' ? 201 : 200, data );
                     }
                     else if ( response.hasOwnProperty ( 'error' ) ){
-                        console.error ( error );
+                        console.error ( response.error );
                         res.setHeader ( 'Content-Type', 'application/json' );
                         res.send ( new restifyErrors.makeErrFromCode ( response?.error?.statusCode, response?.error?.message ) );
                     }
