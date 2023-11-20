@@ -1,133 +1,243 @@
-const restify = require ( 'restify' );
-const restifyErrors = require ( 'restify-errors' );
-const corsPlugin = require ( 'restify-cors-middleware2' );
+const fastify = require ( 'fastify' );
 const recursiveRead = require ( 'recursive-readdir' );
 const packageJson = require ( './package.json' );
 const path = require ( 'path' );
-const multer = require ( 'multer' );
+const multer = require ( 'fastify-multer' ); 
 const storage = multer.memoryStorage ();
 
-/**
- * See README for config setup.
- * 
- * @param {Object} config The config, see readme for example configurations
- * @param {Function} every An optional agrument that accepts a function ready to receive an object. The function will be called everytime a endpoint is requested (good for analytical usage)
- * @param {RestifyServer} _server Optionally override the restify instance in this API and use your own. Accepts a `restify.createServer()` instance.
- */
-module.exports = async ( config, every = null, _server = null ) => {
+const caching = require ( './src/cache' );
+const auth = require ( './src/auth' );
 
-    if ( !config ) console.log ( 'JustAnother: WARNING: You\'ve initialised Just Another Http API without any config. This is not recommended.' );
+let upload;
+let app;
 
-    let upload;
-    let server = _server;
+module.exports = async ( config, _app = null ) => {
+    app = _app || await createServer ( config );
 
-    if ( _server ) console.debug ( 'JustAnother: Using restify override instance provided.' );
-    else {
-        server = restify.createServer ( {
-            name: packageJson.name,
-            version: packageJson.version
-        } );
+    const endpoints = await loadEndpoints ( config );
+    endpoints.forEach ( endpoint => registerEndpoint ( app, endpoint, upload, config ) );
 
-        if ( config?.bodyParser ) server.use ( restify.plugins.queryParser () );
-        if ( config?.bodyParser ) server.use ( restify.plugins.bodyParser () );
-        if ( config?.uploads && config?.uploads.enabled ) upload = multer ( { storage: storage } );
+    await app.listen ( { port: process.env.PORT || config?.port || 4001 } );
 
-        if ( config?.cors ){
-            const cors = corsPlugin ( config.cors );
-            server.pre ( cors.preflight );
-            server.use ( cors.actual );
+    return app;
+};
+
+async function createServer ( config ) {
+    const app = fastify ( {
+        logger: config.logs || false,
+        name: config.name || packageJson.name,
+    } );
+
+    try {
+        if ( config.uploads?.enabled ) {
+            upload = multer ( { storage: storage } );
+            app.register ( upload.contentParser );
+        }
+
+        if ( config.cors ) {
+            await app.register ( require ( '@fastify/cors' ), config.cors );
+        }
+
+        await caching.initialiseCaching ( app, config );
+        await auth.initialiseAuth ( app, config );
+
+        if ( config.middleware && Array.isArray ( config.middleware ) ) {
+            for ( const func of config.middleware ) {
+                if ( typeof func === 'function' ) {
+                    await app.register ( func );
+                }
+            }
         }
     }
+    catch ( error ) {
+        console.error ( 'Error during server initialization:', error );
+        throw error; // Rethrow the error to handle it at a higher level, if necessary
+    }
 
-    server.on ( 'MethodNotAllowed', unknownMethodHandler );
+    return app;
+}
 
+async function loadEndpoints ( config ) {
     const files = await recursiveReadDir ( config?.docRoot || 'routes' );
-    const endpoints = files.map ( ( filePath ) => ( {
+
+    return files.map ( filePath => ( {
         handlers: require ( path.resolve ( filePath ) ),
         path: handlerPathToApiPath ( filePath, config?.docRoot || 'routes' )
     } ) );
+}
 
-    endpoints.forEach ( endpoint => {
-        Object.keys ( endpoint.handlers ).forEach ( method => {
-            const endpointArgs = [
-                endpoint.path,
-                method === 'post' && upload ? upload.single ( 'file' ) : null
-            ].filter ( Boolean );
+function registerEndpoint ( app, endpoint, upload, globalConfig ) {
+    Object.keys ( endpoint.handlers ).filter ( method => method !== 'config' ).forEach ( method => {
+        const handlerConfig = endpoint.handlers.config?.[ method ] || {};
+        const requiresAuth = handlerConfig.requiresAuth !== undefined ? handlerConfig.requiresAuth : globalConfig.auth.requiresAuth;
 
-            server[ method ] ( ...endpointArgs, async ( req, res ) => {
-                try {
-                    const response = await endpoint.handlers[ method ] ( req );
-                
-                    if ( every ) {
-                        every ( { path: endpoint.path, method, req } );
-                    }
+        const routeOptions = {};
+        if ( requiresAuth ) {
+            routeOptions.preHandler = async ( req, reply ) => {
+                console.log ( 333, req.routeOptions );
+                req.authConfig = handlerConfig.auth || globalConfig.auth;
+                await auth.checkAuth ( req, reply );
+            };
+        }
 
-                    // If optional headers have been provided in the response add them here.
-                    if ( response.hasOwnProperty ( 'headers' ) ){
-                        res.set ( response.headers ); 
-                    }
+        const fastifyMethod = translateLegacyMethods ( method.toLowerCase () );
+        const handler = endpoint.handlers[ method ];
+        const wrappedHandler = fastifyHandlerWrapper ( handler, endpoint.handlers.config, globalConfig );
 
-                    if ( response.hasOwnProperty ( 'redirect' ) ){
-                        res.redirect ( response.redirect.code, response.redirect.url, () => null );
-                    }
-
-                    if ( response.hasOwnProperty ( 'cache' ) ){
-                        res.cache ( response.cache.type, response.cache.options );
-                    }
-
-                    // If response.html is set, we want to send the HTML back as a raw string and set the content type.
-                    if ( response.hasOwnProperty ( 'html' ) ){
-                        res.sendRaw ( 200, response.html, { 'Content-Type': 'text/html' } );
-                    } //
-                    else if ( response.hasOwnProperty ( 'json' ) || response.hasOwnProperty ( 'body' ) || response.hasOwnProperty ( 'response' ) || typeof response === 'string' ){
-                        data = response?.json || response?.body || response?.response || response;
-                        res.setHeader ( 'Content-Type', 'application/json' );
-                        res.send ( method === 'post' ? 201 : 200, data );
-                    }
-                    else if ( response.hasOwnProperty ( 'error' ) ){
-                        console.error ( response.error );
-                        res.setHeader ( 'Content-Type', 'application/json' );
-                        res.send ( new restifyErrors.makeErrFromCode ( response?.error?.statusCode, response?.error?.message ) );
-                    }
-                    else if ( response.hasOwnProperty ( 'file' ) ){
-                        res.sendRaw ( response.file );
-                    }
-                    else if ( typeof response === 'object' ){
-                        res.send ( response ); //Try and send whatever it is
-                    }
-                    else if ( !response ){
-                        res.send ( 204 );
-                    }
-                    else {
-                        res.setHeader ( 'Content-Type', 'application/json' );
-                        res.send ( new restifyErrors.makeErrFromCode ( 500, `Just Another Http API did not understand the response provided for request: ${ method } to ${ endpoint.path }. Check your return value.` ) );
-                    }
-
-                    return;
-                }
-                catch ( error ){
-                    res.setHeader ( 'Content-Type', 'application/json' );
-                    if ( error instanceof Error ) {
-                        res.send ( new restifyErrors.InternalServerError ( { code: 500 }, error.stack.replace ( /\n/g, ' ' ) ) );
-                    }
-                    else {
-                        if ( error.code ) {
-                            res.send ( new restifyErrors.makeErrFromCode ( error.code, error.message ) );
-                        }
-    
-                        res.send ( new restifyErrors.InternalServerError ( { code: 500 }, JSON.stringify ( error, null, 2 ) ) );
-                    }
-
-                    return;
-                }
-            } );
-        } );
+        if ( fastifyMethod === 'post' && upload ) {
+            app.post ( endpoint.path, { preHandler: [ upload.single ( 'file' ), routeOptions.preHandler ], ...routeOptions }, wrappedHandler );
+        }
+        else {
+            app[ fastifyMethod ] ( endpoint.path, routeOptions, wrappedHandler );
+        }
     } );
-            
-    await server.listen ( process.env.PORT || config?.port || 4001 );
-    
-    return server;
+}
+
+function translateLegacyMethods ( method ) {
+    switch ( method ) {
+        case 'del':
+            return 'delete';
+        default: 
+            return method;
+    }
+}
+
+function fastifyHandlerWrapper ( handler, config, globalConfig ) {
+    return async ( req, reply ) => {
+        try {
+            let response = await caching.checkRequestCache ( app, req, reply, config, globalConfig );
+                       
+            if ( !response ){
+                response = await handler ( req );
+                await caching.setRequestCache ( app, req, response, config, globalConfig );
+            }
+
+            handleResponse ( reply, response, req.method, req.routeOptions.url );
+        }
+        catch ( error ) {
+            handleError ( reply, error );
+        }
+    };
 };
+
+function handleResponse ( reply, response, method, path ) {
+    if ( !response ) {
+        reply.code ( 204 ).send ();
+        
+        return;
+    }
+
+    if ( typeof response !== 'object' || response === null ) {
+        handleNonObjectResponse ( reply, response, method );
+        
+        return;
+    }
+
+    setResponseHeaders ( reply, response );
+    handleSpecialResponseTypes ( reply, response, method, path );
+}
+
+function setResponseHeaders ( reply, response ) {
+    if ( response.headers ) {
+        Object.entries ( response.headers ).forEach ( ( [ key, value ] ) => {
+            reply.header ( key, value );
+        } );
+    }
+}
+
+function handleSpecialResponseTypes ( reply, response, method, path ) {
+    if ( response.redirect ) {
+        reply.redirect ( 301, response.redirect.url );
+        
+        return;
+    }
+
+    if ( response.html ) {
+        reply.code ( 200 ).type ( 'text/html' ).send ( response.html );
+        
+        return;
+    }
+
+    if ( response.text ) {
+        reply.code ( 200 ).type ( 'text/plain' ).send ( response.text );
+        
+        return;
+    }
+
+    if ( response.error ) {
+        handleErrorResponse ( reply, response.error );
+        
+        return;
+    }
+
+    if ( response.file ) {
+        // Assuming response.file is the buffer or stream of the file
+        reply.send ( response.file );
+        
+        return;
+    }
+
+    sendGenericResponse ( reply, response, method, path );
+}
+
+function sendGenericResponse ( reply, response, method, path ) {
+
+    const data = response.json ?? response.body ?? response.response ?? response;
+
+    if ( data !== undefined ) {
+        reply.type ( 'application/json' ).code ( method === 'post' ? 201 : 200 ).send ( data );
+    }
+    else {
+        handleUnknownResponseType ( reply, method, path );
+    }
+
+}
+
+function handleErrorResponse ( reply, error ) {
+    console.error ( error );
+    const statusCode = error?.statusCode ?? 500;
+    reply.code ( statusCode ).type ( 'application/json' ).send ( { error: error.message } );
+}
+
+function handleUnknownResponseType ( reply, method, path ) {
+    reply.type ( 'application/json' ).code ( 500 ).send ( {
+        error: `Unrecognized response type for ${method} ${path}`
+    } );
+}
+
+function handleNonObjectResponse ( reply, response, method ) {
+    reply.type ( 'text/plain' ).code ( method === 'post' ? 201 : 200 ).send ( response.toString () );
+}
+
+function handleError ( reply, error ) {
+    // Set content type for the error response
+    reply.header ( 'Content-Type', 'application/json' );
+
+    if ( error instanceof Error ) {
+        // Send internal server error with the error stack
+        reply.status ( 500 ).send ( { 
+            error: 'Internal Server Error', 
+            message: error.message, 
+            stack: error.stack 
+        } );
+    }
+    else {
+        // Check if error object contains a specific status code
+        if ( error.code && typeof error.code === 'number' ) {
+            reply.status ( error.code ).send ( { 
+                error: 'Error',
+                message: error.message 
+            } );
+        }
+        else {
+            // Send a generic internal server error response
+            reply.status ( 500 ).send ( { 
+                error: 'Internal Server Error', 
+                message: 'An unknown error occurred' 
+            } );
+        }
+    }
+}
 
 const handlerPathToApiPath = ( path, docRoot ) => {
 
@@ -159,21 +269,4 @@ const recursiveReadDir = async ( docRoot ) => {
         console.error ( 'JustAnother: Failed to load your routes directory for generating endpoints.' );
         throw e;
     }  
-};
-
-const unknownMethodHandler = ( req, res ) => {
-    if ( req.method.toLowerCase () === 'options' ) {
-        const allowHeaders = [ '*' ];
-
-        if ( res.methods.indexOf ( 'OPTIONS' ) === -1 ) res.methods.push ( 'OPTIONS' );
-
-        res.header ( 'Access-Control-Allow-Credentials', true );
-        res.header ( 'Access-Control-Allow-Headers', allowHeaders.join ( ', ' ) );
-        res.header ( 'Access-Control-Allow-Methods', res.methods.join ( ', ' ) );
-        res.header ( 'Access-Control-Allow-Origin', req.headers.origin );
-
-        return res.send ( 204 );
-    }
-
-    return res.send ( new restifyErrors.MethodNotAllowedError ( { code: 405 }, `${ req.method } method is not available on this endpoint` ) );
 };

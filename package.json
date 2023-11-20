@@ -16,7 +16,7 @@
     "restapi",
     "restful",
     "rest",
-    "restify",
+    "fastify",
     "http",
     "server",
     "just another",
@@ -25,11 +25,17 @@
   "author": "Oliver Edgington <oliver@edgington.com> (https://github.com/OllieEdge)",
   "license": "MIT",
   "dependencies": {
-    "multer": "^1.4.2",
-    "recursive-readdir": "^2.2.3",
-    "restify": "^10.0.0",
-    "restify-cors-middleware2": "^2.2.0",
-    "restify-errors": "^8.0.0"
+    "@fastify/caching": "^8.3.0",
+    "@fastify/cors": "^8.4.1",
+    "@fastify/redis": "^6.1.1",
+    "abstract-cache": "^1.0.1",
+    "abstract-cache-redis": "^2.0.0",
+    "config": "^3.3.9",
+    "eip-cloud-services": "^1.1.0",
+    "fastify": "^4.24.3",
+    "fastify-jwt": "^4.2.0",
+    "fastify-multer": "^2.0.3",
+    "recursive-readdir": "^2.2.3"
   },
   "devDependencies": {
     "chai": "^4.3.7",
