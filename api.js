@@ -2,20 +2,19 @@ const fastify = require ( 'fastify' );
 const recursiveRead = require ( 'recursive-readdir' );
 const packageJson = require ( './package.json' );
 const path = require ( 'path' );
-const multer = require ( 'fastify-multer' ); 
-const storage = multer.memoryStorage ();
 
 const caching = require ( './src/cache' );
+const uploads = require ( './src/upload' );
 const auth = require ( './src/auth' );
+const cors = require ( './src/cors' );
 
-let upload;
 let app;
 
 module.exports = async ( config, _app = null ) => {
     app = _app || await createServer ( config );
 
     const endpoints = await loadEndpoints ( config );
-    endpoints.forEach ( endpoint => registerEndpoint ( app, endpoint, upload, config ) );
+    endpoints.forEach ( endpoint => registerEndpoint ( app, endpoint, config ) );
 
     await app.listen ( { port: process.env.PORT || config?.port || 4001 } );
 
@@ -29,15 +28,11 @@ async function createServer ( config ) {
     } );
 
     try {
-        if ( config.uploads?.enabled ) {
-            upload = multer ( { storage: storage } );
-            app.register ( upload.contentParser );
-        }
-
+        
         if ( config.cors ) {
-            await app.register ( require ( '@fastify/cors' ), config.cors );
+            app.register ( require ( '@fastify/cors' ), config.cors );
         }
-
+        await uploads.initialiseUploads ( app, config );
         await caching.initialiseCaching ( app, config );
         await auth.initialiseAuth ( app, config );
 
@@ -66,30 +61,37 @@ async function loadEndpoints ( config ) {
     } ) );
 }
 
-function registerEndpoint ( app, endpoint, upload, globalConfig ) {
+function registerEndpoint ( app, endpoint, globalConfig ) {
     Object.keys ( endpoint.handlers ).filter ( method => method !== 'config' ).forEach ( method => {
         const handlerConfig = endpoint.handlers.config?.[ method ] || {};
-        const requiresAuth = handlerConfig.requiresAuth !== undefined ? handlerConfig.requiresAuth : globalConfig.auth.requiresAuth;
+        const requiresAuth = handlerConfig?.requiresAuth !== undefined ? handlerConfig.requiresAuth : !!globalConfig?.auth?.requiresAuth;
 
-        const routeOptions = {};
+        const preHandlers = [];
         if ( requiresAuth ) {
-            routeOptions.preHandler = async ( req, reply ) => {
-                console.log ( 333, req.routeOptions );
+            preHandlers.push ( async ( req, reply ) => {
                 req.authConfig = handlerConfig.auth || globalConfig.auth;
                 await auth.checkAuth ( req, reply );
-            };
+            } );
+        }
+
+        if ( globalConfig?.uploads?.enabled && handlerConfig?.upload?.enabled ) {
+            preHandlers.push ( uploads.handleUpload ( handlerConfig, globalConfig ) );
+        }
+        if ( handlerConfig?.cors !== undefined ) {
+            preHandlers.push ( cors.addCustomCors ( handlerConfig, globalConfig ) );
         }
 
         const fastifyMethod = translateLegacyMethods ( method.toLowerCase () );
         const handler = endpoint.handlers[ method ];
         const wrappedHandler = fastifyHandlerWrapper ( handler, endpoint.handlers.config, globalConfig );
 
-        if ( fastifyMethod === 'post' && upload ) {
-            app.post ( endpoint.path, { preHandler: [ upload.single ( 'file' ), routeOptions.preHandler ], ...routeOptions }, wrappedHandler );
-        }
-        else {
-            app[ fastifyMethod ] ( endpoint.path, routeOptions, wrappedHandler );
-        }
+        app[ fastifyMethod ] ( 
+            endpoint.path, 
+            { 
+                preHandler: preHandlers
+            },
+            wrappedHandler 
+        );
     } );
 }
 
@@ -121,6 +123,7 @@ function fastifyHandlerWrapper ( handler, config, globalConfig ) {
 };
 
 function handleResponse ( reply, response, method, path ) {
+    
     if ( !response ) {
         reply.code ( 204 ).send ();
         
@@ -171,7 +174,6 @@ function handleSpecialResponseTypes ( reply, response, method, path ) {
     }
 
     if ( response.file ) {
-        // Assuming response.file is the buffer or stream of the file
         reply.send ( response.file );
         
         return;
@@ -262,7 +264,6 @@ const recursiveReadDir = async ( docRoot ) => {
     try {
         const files = await recursiveRead ( docRoot );
         
-        // Remove all falsy values and reverse the array.
         return files.filter ( filePath => filePath ? !filePath.includes ( 'DS_Store' ) : false ).reverse ();
     }
     catch ( e ){

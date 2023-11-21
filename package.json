@@ -1,7 +1,7 @@
 {
   "name": "just-another-http-api",
-  "version": "1.0.4",
-  "description": "A framework built on top of restify aimed at removing the need for any network or server configuration. ",
+  "version": "1.2.0",
+  "description": "A framework built on top of fastify aimed at removing the need for any network or server configuration. ",
   "homepage": "https://github.com/OllieEdge/just-another-http-api#readme",
   "repository": {
     "type": "git",
@@ -25,21 +25,21 @@
   "author": "Oliver Edgington <oliver@edgington.com> (https://github.com/OllieEdge)",
   "license": "MIT",
   "dependencies": {
+    "@aws-sdk/lib-storage": "^3.454.0",
     "@fastify/caching": "^8.3.0",
     "@fastify/cors": "^8.4.1",
+    "@fastify/jwt": "^7.2.3",
     "@fastify/redis": "^6.1.1",
     "abstract-cache": "^1.0.1",
     "abstract-cache-redis": "^2.0.0",
-    "config": "^3.3.9",
-    "eip-cloud-services": "^1.1.0",
     "fastify": "^4.24.3",
-    "fastify-jwt": "^4.2.0",
     "fastify-multer": "^2.0.3",
     "recursive-readdir": "^2.2.3"
   },
   "devDependencies": {
-    "chai": "^4.3.7",
+    "chai": "^4.3.10",
     "chai-as-promised": "^7.1.1",
+    "eip-cloud-services": "^1.1.0",
     "mocha": "^10.2.0"
   }
 }

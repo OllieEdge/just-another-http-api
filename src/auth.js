@@ -3,14 +3,14 @@ let config;
 exports.initialiseAuth = async ( app, _config ) => {
     config = _config;
 
-    const authType = config.auth.type;
+    const authType = config?.auth?.type;
 
     switch ( authType ) {
         case 'jwt':
 
             checkJwtIsAvailable ( config );
 
-            app.register ( require ( 'fastify-jwt' ), {
+            app.register ( require ( '@fastify/jwt' ), {
                 secret: config.auth.jwtSecret,
             } );
 
@@ -31,7 +31,7 @@ exports.initialiseAuth = async ( app, _config ) => {
                 }
             } );
 
-            app.post ( '/auth/login', async ( req, reply ) => {
+            app.post ( config?.auth?.tokenEndpoint || '/auth/login', async ( req, reply ) => {
 
                 const jwtToTokenise = await config.auth.jwtLoginHandle ( req.body );
 
@@ -55,7 +55,7 @@ exports.initialiseAuth = async ( app, _config ) => {
             } );
 
             if ( config.auth.jwtEnabledRefreshTokens && checkJwtRefreshIsAvailable ( config ) ){
-                app.post ( '/auth/refresh', async ( req, reply ) => {
+                app.post ( config?.auth?.refreshTokenEndpoint || '/auth/refresh', async ( req, reply ) => {
 
                     const { user, refreshToken } = req.body;
 

@@ -4,9 +4,14 @@ exports.config = {
     get: {
         cache: true,
         expires: 50, //seconds
-        requiresAuth: true
+        requiresAuth: false,
     },
     post: {
+        upload: {
+            enabled: true,
+            maxFileSize: 1000000, //bytes
+            maxFiles: 1
+        },
         cache: false
     }
 };
@@ -14,7 +19,7 @@ exports.config = {
 exports.get = async req => {
     // error example
 
-    return response ( { json: { test: 'test' } } );
+    return response ( { html: '<p>hello world</p>' } );
 
     return { error: { statusCode: 501, message: 'This is a test error message for Just Another Http API' } };
 };

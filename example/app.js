@@ -1,17 +1,19 @@
-const httpApi = require ( '../api.js' );
-const { redis } = require ( 'eip-cloud-services' );
+const justAnotherHttpApi = require ( '../api.js' );
+const { redis, s3 } = require ( 'eip-cloud-services' );
 
 const getConfig = async () => {
 
     const redisClient = await redis.getClient ();
+    const s3Client = s3.s3Client;
 
-    const jwtLogin = async ( loginBody ) => {
-        const { user, password } = loginBody;
+    const authenticateNewUser = async ( requestBody ) => {
+        const { username, password } = requestBody;
 
-        if ( user === 'admin' && password === 'admin' ) {
-            return 'username';
+        // Do your own authentication here, this is just an example
+        if ( username === 'admin' && password === 'admin' ) {
+            return 'username'; // A unique identifier that can be used to identify the user
         }
-        else return false;
+        else return false; // Login failed
     };
 
     const storeRefreshToken = async ( user, refreshToken ) => {
@@ -28,10 +30,6 @@ const getConfig = async () => {
 
     return {
         name: 'Server Name',
-        version: '1.0.0',
-        uploads: {
-            enabled: true
-        },
         cache: {
             defaultExpiry: 60, //seconds
             enabled: true,
@@ -40,11 +38,13 @@ const getConfig = async () => {
             redisPrefix: 'network-cache:'
         },
         auth: {
-            requiresAuth: true,
-            type: 'jwt',
+            requiresAuth: false,
+            tokenEndpoint: '/auth/login',
+            refreshTokenEndpoint: '/auth/refresh',
+            type: 'jwt', //only support for JWT currently
             jwtSecret: 'f376abcf-d927-404f-98a2-62a079c4f28f',
-            jwtLoginHandle: jwtLogin, // promise
-            jwtExpiresIn: 20, // 1 hour
+            jwtLoginHandle: authenticateNewUser, // promise
+            jwtExpiresIn: 3600, // 1 hour
             jwtEnabledRefreshTokens: true,
             jwtStoreRefreshToken: storeRefreshToken, // promise
             jwtRetrieveRefreshToken: retrieveRefreshToken, // promise
@@ -53,45 +53,48 @@ const getConfig = async () => {
         docRoot: './routes',
         port: 4001,
         logs: false,
+        uploads: {
+            enabled: true,
+            storageType: 'memory', // s3, memory or filesystem
+            localUploadDirectory: '/tmp/uploads', // if unset, this will use the os.tmpdir value, if set the directory will be created if it doesn't exist
+            s3Client, // connected s3 client
+            s3UploadDirectory: 'test-uploads',
+            s3UploadBucket: 's3-test.eip.telegraph.co.uk',
+        },
         cors: {
-            credentials: false,
-            origins: [ '*' ],
-            allowHeaders: [
+            allowedHeaders: [
                 'accept',
                 'accept-version',
                 'content-type',
                 'request-id',
                 'origin',
-                'x-api-version',
-                'x-request-id'
             ],
-            exposeHeaders: [
+            exposedHeaders: [
                 'accept',
                 'accept-version',
                 'content-type',
                 'request-id',
                 'origin',
-                'x-api-version',
-                'x-request-id',
                 'x-cache',
                 'x-cache-age',
                 'x-cache-expires',
             ],
-            methods: [ 'GET', 'POST', 'PUT', 'DELETE', 'OPTIONS' ],
+            origin: '*',
+            methods: 'GET,PUT,POST,DELETE,OPTIONS',
             optionsSuccessStatus: 204
         },
-        middleware: [ ], // function ( req, res, next ) { next (); }   
+        middleware: [ ], // not implemented yet.
     };
 };
 
 ( async () => {
-    const server = await httpApi ( await getConfig () );
+    const server = await justAnotherHttpApi ( await getConfig () );
 
-    process.stdout.write ( '\x1B[38;5;9m┌-- [ \x1B[0m\x1B[38;5;118mSERVER READY (v2.0) \x1B[0m\x1B[38;5;9m] ---------------------------------------\x1B[0m\n' );
+    process.stdout.write ( '\x1B[38;5;9m┌-- [ \x1B[0m\x1B[38;5;118mSERVER READY (v1.2.0) \x1B[0m\x1B[38;5;9m] ---------------------------------------\x1B[0m\n' );
     process.stdout.write ( '\x1B[38;5;9m|\n' );
-    process.stdout.write ( `\x1B[38;5;9m|    \x1B[38;5;244mRunning on: \x1B[38;5;214m${ server.url }\n` );
+    server.addresses ().forEach ( address => {
+        process.stdout.write ( `\x1B[38;5;9m|    \x1B[38;5;244mServer listening at: \x1B[38;5;214m${ address.address } \x1B[38;5;244mon port: \x1B[38;5;214m${ address.port } \x1B[38;5;244m(${ address.family })\n` );
+    } );
     process.stdout.write ( '\x1B[38;5;9m|\n' );
-    process.stdout.write ( `\x1B[38;5;9m|    \x1B[38;5;244mStarted with args: [ \x1B[38;5;214m${ process.argv.join ( ', ' ) }\x1B[38;5;244m ]\n` );
-    process.stdout.write ( '\x1B[38;5;9m|\n' );
-    process.stdout.write ( '\x1B[38;5;9m└-- [ \x1B[0m\x1B[38;5;118mSERVER READY (v2.0)\x1B[0m\x1B[38;5;9m] ---------------------------------------\x1B[0m\n' );
+    process.stdout.write ( '\x1B[38;5;9m└-- [ \x1B[0m\x1B[38;5;118mSERVER READY (v1.2.0)\x1B[0m\x1B[38;5;9m] ----------------------------------------\x1B[0m\n' );
 } ) ();
