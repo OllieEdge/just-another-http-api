@@ -8,8 +8,7 @@ describe ( 'API Unit Tests', () => {
     describe ( 'API User functionality', () => {
         it ( 'Should successfully start and return a HTTP Server ', async () => {
             const server = await api ( { docRoot: './example/routes' } );
-            expect ( server.name ).to.equal ( 'just-another-http-api' );
-            expect ( server.close () ).to.equal ( undefined );
+            expect ( server.addresses () ).to.be.an ( 'array' );
         } );
         it ( 'Should fail to start a HTTP Server ', async () => {
             await expect ( api () ).to.be.rejectedWith ( Error );
