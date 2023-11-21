@@ -9,6 +9,7 @@ describe ( 'API Unit Tests', () => {
         it ( 'Should successfully start and return a HTTP Server ', async () => {
             const server = await api ( { docRoot: './example/routes' } );
             expect ( server.addresses () ).to.be.an ( 'array' );
+            server.close ();
         } );
         it ( 'Should fail to start a HTTP Server ', async () => {
             await expect ( api () ).to.be.rejectedWith ( Error );
