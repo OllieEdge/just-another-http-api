@@ -32,6 +32,9 @@ async function createServer ( config ) {
         if ( config.cors ) {
             app.register ( require ( '@fastify/cors' ), config.cors );
         }
+        if ( config.websocket?.enabled ){
+            app.register ( require ( '@fastify/websocket' ), config.websocket?.options );
+        }
         await uploads.initialiseUploads ( app, config );
         await caching.initialiseCaching ( app, config );
         await auth.initialiseAuth ( app, config );
@@ -83,12 +86,13 @@ function registerEndpoint ( app, endpoint, globalConfig ) {
 
         const fastifyMethod = translateLegacyMethods ( method.toLowerCase () );
         const handler = endpoint.handlers[ method ];
-        const wrappedHandler = fastifyHandlerWrapper ( handler, endpoint.handlers.config, globalConfig );
+        const wrappedHandler = fastifyHandlerWrapper ( handler, endpoint.handlers.config, globalConfig, method );
 
         app[ fastifyMethod ] ( 
             endpoint.path, 
             { 
-                preHandler: preHandlers
+                preHandler: preHandlers,
+                websocket: handlerConfig?.websocket || false,
             },
             wrappedHandler 
         );
@@ -104,22 +108,27 @@ function translateLegacyMethods ( method ) {
     }
 }
 
-function fastifyHandlerWrapper ( handler, config, globalConfig ) {
-    return async ( req, reply ) => {
-        try {
-            let response = await caching.checkRequestCache ( app, req, reply, config, globalConfig );
+function fastifyHandlerWrapper ( handler, config, globalConfig, method ) {
+    if ( config?.[ method ].websocket ){
+        return handler;
+    }
+    else {
+        return async ( req, reply ) => {
+            try {
+                let response = await caching.checkRequestCache ( app, req, reply, config, globalConfig );
                        
-            if ( !response ){
-                response = await handler ( req );
-                await caching.setRequestCache ( app, req, response, config, globalConfig );
-            }
+                if ( !response ){
+                    response = await handler ( req );
+                    await caching.setRequestCache ( app, req, response, config, globalConfig );
+                }
 
-            handleResponse ( reply, response, req.method, req.routeOptions.url );
-        }
-        catch ( error ) {
-            handleError ( reply, error );
-        }
-    };
+                handleResponse ( reply, response, req.method, req.routeOptions.url );
+            }
+            catch ( error ) {
+                handleError ( reply, error );
+            }
+        };
+    }
 };
 
 function handleResponse ( reply, response, method, path ) {

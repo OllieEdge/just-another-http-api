@@ -30,6 +30,12 @@ const getConfig = async () => {
 
     return {
         name: 'Server Name',
+        websocket: {
+            enabled: true,
+            options: {
+                maxPayload: 1048576,
+            }
+        },
         cache: {
             defaultExpiry: 60, //seconds
             enabled: true,

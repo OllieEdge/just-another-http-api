@@ -1,7 +1,9 @@
 const response = require ( '../../utils/response' );
+const websocketHandler = require ( '../../utils/websocketHandler' );
 
 exports.config = {
     get: {
+        websocket: true,
         cache: true,
         expires: 50, //seconds
         requiresAuth: false,
@@ -16,13 +18,11 @@ exports.config = {
     }
 };
 
-exports.get = async req => {
-    // error example
-
-    return response ( { html: '<p>hello world</p>' } );
-
-    return { error: { statusCode: 501, message: 'This is a test error message for Just Another Http API' } };
+exports.get = async ( connection, req ) => {
+    const websocketGroup = await websocketHandler ( req.routeOptions.url );
+    const { connectionId, groupName } = websocketGroup.addNewConnection ( connection );
 };
+
 exports.post = async req => {
     // success response example
 
