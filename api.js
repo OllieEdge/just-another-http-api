@@ -25,6 +25,7 @@ async function createServer ( config ) {
     const app = fastify ( {
         logger: config.logs || false,
         name: config.name || packageJson.name,
+        ...( config?.fastify || {} )
     } );
 
     try {
@@ -109,17 +110,24 @@ function translateLegacyMethods ( method ) {
 }
 
 function fastifyHandlerWrapper ( handler, config, globalConfig, method ) {
-    if ( config?.[ method ].websocket ){
+    if ( config?.[ method ]?.websocket ){
         return handler;
     }
     else {
         return async ( req, reply ) => {
             try {
-                let response = await caching.checkRequestCache ( app, req, reply, config, globalConfig );
+                let response;
+                if ( globalConfig?.cache?.enabled ){
+                    const request = { method: req.method, query: JSON.parse ( JSON.stringify ( req.query ) ), routeOptions: req.routeOptions };
+                    response = await caching.checkRequestCache ( app, request, reply, config, globalConfig );
                        
-                if ( !response ){
+                    if ( !response ){
+                        response = await handler ( req );
+                        await caching.setRequestCache ( app, request, response, config, globalConfig );
+                    }
+                }
+                else {
                     response = await handler ( req );
-                    await caching.setRequestCache ( app, req, response, config, globalConfig );
                 }
 
                 handleResponse ( reply, response, req.method, req.routeOptions.url );

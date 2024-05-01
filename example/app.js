@@ -30,6 +30,9 @@ const getConfig = async () => {
 
     return {
         name: 'Server Name',
+        fastify: {
+            bodyLimit: 1048576,
+        },
         websocket: {
             enabled: true,
             options: {
