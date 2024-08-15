@@ -118,11 +118,11 @@ function fastifyHandlerWrapper ( handler, config, globalConfig, method ) {
             try {
                 let response;
                 if ( globalConfig?.cache?.enabled ){
-                    const request = { method: req.method, query: JSON.parse ( JSON.stringify ( req.query ) ), routeOptions: req.routeOptions };
+                    const request = { method: req.method, query: JSON.parse ( JSON.stringify ( req.query ) ), routeOptions: req.routeOptions, params: JSON.parse ( JSON.stringify ( req.params ) ) };
                     response = await caching.checkRequestCache ( app, request, reply, config, globalConfig );
-                       
+
                     if ( !response ){
-                        response = await handler ( req );
+                        response = await handler ( req, { invalidateRequest: ( _req ) => caching.invalidateRequestCache( app, _req, globalConfig ) } );
                         await caching.setRequestCache ( app, request, response, config, globalConfig );
                     }
                 }

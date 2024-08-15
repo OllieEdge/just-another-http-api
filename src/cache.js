@@ -1,4 +1,12 @@
-const getCacheKey = ( config, req ) => `${config?.cache?.redisPrefix || ''}:${req.method.toLowerCase ()}:${req.routeOptions.url}:${JSON.stringify ( req.query )}`;
+const getCacheKey = (config, req) => {
+    let url = req.routeOptions.url;
+
+    for (const [ param, value ] of Object.entries( req.params || {} )) {
+        url = url.replace(`:${param}`, value);
+    }
+
+    return `${config?.cache?.redisPrefix || ''}:${req.method.toLowerCase()}:${url}:${JSON.stringify( req.query )}`;
+};
 
 exports.initialiseCaching = async ( app, config ) => {
 
@@ -65,5 +73,13 @@ exports.setRequestCache = async ( app, req, response, handleConfig, globalConfig
             response.headers[ 'X-Cache-Expires' ] = handleConfig?.[ req.method.toLowerCase () ]?.expires || globalConfig?.cache?.expires || 60;
         }
 
+    }
+};
+
+exports.invalidateRequestCache = async ( app, req, globalConfig ) => {
+    if ( globalConfig?.cache?.enabled ) {
+        const cacheKey = getCacheKey ( globalConfig, req );
+
+        await app.redis.del ( cacheKey );
     }
 };
