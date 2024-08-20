@@ -46,6 +46,11 @@ const getConfig = async () => {
             redisClient,
             redisPrefix: 'network-cache:'
         },
+        cookies: {
+            enabled: true,
+            secret: null,
+            hook: 'onRequest',
+        },
         auth: {
             requiresAuth: false,
             tokenEndpoint: '/auth/login',
@@ -60,7 +65,7 @@ const getConfig = async () => {
             jwtRefreshExpiresIn: 604800, // 1 week
         },
         docRoot: './routes',
-        port: 4001,
+        port: 4002,
         logs: false,
         uploads: {
             enabled: true,

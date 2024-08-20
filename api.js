@@ -36,6 +36,9 @@ async function createServer ( config ) {
         if ( config.websocket?.enabled ){
             app.register ( require ( '@fastify/websocket' ), config.websocket?.options );
         }
+        if (config.cookies?.enabled) {
+            app.register ( require ( '@fastify/cookie' ), config.cookies );
+        }
         await uploads.initialiseUploads ( app, config );
         await caching.initialiseCaching ( app, config );
         await auth.initialiseAuth ( app, config );
