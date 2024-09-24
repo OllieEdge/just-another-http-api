@@ -8,6 +8,8 @@ const uploads = require ( './src/upload' );
 const auth = require ( './src/auth' );
 const cors = require ( './src/cors' );
 
+const preventDuplicateRequests = require('./utils/preventDuplicateRequest');
+
 let app;
 
 module.exports = async ( config, _app = null ) => {
@@ -87,6 +89,9 @@ function registerEndpoint ( app, endpoint, globalConfig ) {
         if ( handlerConfig?.cors !== undefined ) {
             preHandlers.push ( cors.addCustomCors ( handlerConfig, globalConfig ) );
         }
+        if ( method.toLowerCase() === 'post' && handlerConfig?.preventDuplicate ) {
+            preHandlers.push( preventDuplicateRequests );
+        }
 
         const fastifyMethod = translateLegacyMethods ( method.toLowerCase () );
         const handler = endpoint.handlers[ method ];
@@ -97,6 +102,7 @@ function registerEndpoint ( app, endpoint, globalConfig ) {
             { 
                 preHandler: preHandlers,
                 websocket: handlerConfig?.websocket || false,
+                bodyLimit: handlerConfig?.bodyLimit || undefined,
             },
             wrappedHandler 
         );
@@ -203,8 +209,7 @@ function handleSpecialResponseTypes ( reply, response, method, path ) {
 }
 
 function sendGenericResponse ( reply, response, method, path ) {
-
-    const data = response.json ?? response.body ?? response.response ?? response;
+    const data = response.json !== undefined ? response.json : response.body ?? response.response ?? response;
 
     if ( data !== undefined ) {
         reply.type ( 'application/json' ).code ( method === 'post' ? 201 : 200 ).send ( data );
