@@ -11,6 +11,7 @@ class WebsocketGroup {
         this.connections = new Map ();
         this.messageReceivedHandler = messageReceivedHandler || ( async () => {} );
         this.connectionClosedHandler = connectionClosedHandler;
+        this.pingConnections = setInterval ( this.#pingConnections.bind ( this ), 30000 );
     }
 
     async initialize () {
@@ -31,16 +32,29 @@ class WebsocketGroup {
 
     #broadcastMessageToClients ( message ) {
         this.connections.forEach ( conn => {
-            conn.socket.send ( typeof message === 'string' ? message : JSON.stringify ( message ) );
+            conn.send ( typeof message === 'string' ? message : JSON.stringify ( message ) );
         } );
     }
 
     #handleIndividualMessage ( individualMessage ) {
         const { connectionId, message } = JSON.parse ( individualMessage );
         if(this.connections.has(connectionId)) {
-            this.connections.get(connectionId).socket.send(message);
+            this.connections.get(connectionId).send(message);
         }
     }
+
+    #pingConnections () {
+        this.connections.forEach ( ( connection, connectionId ) => {
+            if(!connection.isAlive) {
+                this.connections.delete ( connectionId );
+                this.#clean(connectionId);
+            }
+            else{
+                connection.isAlive = false;
+                connection.ping ();
+            }
+        } );
+    }   
 
     getConnections () {
         return this.connections;
@@ -55,9 +69,10 @@ class WebsocketGroup {
     }
 
     addNewConnection ( connection, connectionId = crypto.randomUUID () ) {
+        connection.isAlive = true;
         this.connections.set ( connectionId, connection );
 
-        connection.socket.on ( 'message', async message => {
+        connection.on ( 'message', async message => {
             const userMessage = {
                 groupName: this.groupName,
                 connectionId,
@@ -66,12 +81,16 @@ class WebsocketGroup {
             await redis.publish ( `${this.groupName}_messageReceived`, JSON.stringify ( userMessage ) );
         } );
         
-        connection.socket.on ( 'close', () => {
+        connection.on ( 'close', () => {
             this.connections.delete ( connectionId );
             this.#clean(connectionId);
         } );
+
+        connection.on ( 'pong', () => {
+            connection.isAlive = true;
+        } );
         
-        connection.socket.on ( 'error', error => {
+        connection.on ( 'error', error => {
             console.error ( 'WebSocket error:', error );
             this.connections.delete ( connectionId );
             this.#clean(connectionId);
@@ -92,6 +111,7 @@ class WebsocketGroup {
         }
 
         if ( this.connections.size === 0 ) {
+            clearInterval ( this.pingConnections );
             this.connections.clear ();
             await redis.unsubscribe ( `${this.groupName}_individualMessage` );
             await redis.unsubscribe ( `${this.groupName}_broadcast` );
