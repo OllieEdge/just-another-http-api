@@ -1,6 +1,6 @@
 {
   "name": "just-another-http-api",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "A framework built on top of fastify aimed at removing the need for any network or server configuration. ",
   "homepage": "https://github.com/OllieEdge/just-another-http-api#readme",
   "repository": {
