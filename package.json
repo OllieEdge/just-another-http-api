@@ -5,7 +5,7 @@
   "homepage": "https://github.com/OllieEdge/just-another-http-api#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/OllieEdge/just-another-http-api.git"
+    "url": "git+https://github.com/OllieEdge/just-another-http-api.git"
   },
   "main": "api.js",
   "scripts": {
